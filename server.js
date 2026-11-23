@@ -34,7 +34,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Downloads site running at http://localhost:${PORT}`);
-  console.log(`Admin panel: http://localhost:${PORT}/admin.html`);
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`Downloads site running at http://${HOST}:${PORT}`);
+  console.log(`Admin panel: http://${HOST}:${PORT}/admin.html`);
 });
