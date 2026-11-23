@@ -8,6 +8,8 @@ const toast = document.getElementById('toast');
 
 let editingId = null;
 let allTags = [];
+let allIcons = [];
+let selectedExistingIcon = '';
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -41,7 +43,40 @@ async function checkAuth() {
 
 function showSetup() { setupView.style.display = 'block'; loginView.style.display = 'none'; adminView.style.display = 'none'; }
 function showLogin() { setupView.style.display = 'none'; loginView.style.display = 'block'; adminView.style.display = 'none'; }
-function showAdmin() { setupView.style.display = 'none'; loginView.style.display = 'none'; adminView.style.display = 'block'; loadList(); loadTags(); }
+function showAdmin() { setupView.style.display = 'none'; loginView.style.display = 'none'; adminView.style.display = 'block'; loadList(); loadTags(); loadIcons(); }
+
+async function loadIcons() {
+  try { allIcons = await api('/icons'); } catch (e) { allIcons = []; }
+  renderIconGallery();
+}
+function renderIconGallery() {
+  const box = document.getElementById('iconGallery');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!allIcons.length) { box.textContent = 'No uploaded images yet.'; box.style.color = 'var(--ink-muted)'; return; }
+  for (const ic of allIcons) {
+    const img = document.createElement('img');
+    img.src = ic.url;
+    img.title = ic.filename;
+    img.style.width = '48px';
+    img.style.height = '48px';
+    img.style.objectFit = 'cover';
+    img.style.cursor = 'pointer';
+    img.style.border = '2px solid transparent';
+    img.style.borderRadius = '2px';
+    if (selectedExistingIcon === ic.filename) img.style.borderColor = 'var(--gold)';
+    img.addEventListener('click', () => {
+      if (selectedExistingIcon === ic.filename) {
+        selectedExistingIcon = '';
+      } else {
+        selectedExistingIcon = ic.filename;
+      }
+      document.getElementById('mIconExisting').value = selectedExistingIcon;
+      renderIconGallery();
+    });
+    box.appendChild(img);
+  }
+}
 
 async function loadTags() {
   try { allTags = await api('/tags'); } catch (e) { allTags = []; }
@@ -141,6 +176,9 @@ function openAdd() {
   document.getElementById('mIcon').value = '';
   document.getElementById('mIconUrl').value = '';
   document.getElementById('mTags').value = '';
+  selectedExistingIcon = '';
+  document.getElementById('mIconExisting').value = '';
+  renderIconGallery();
   document.getElementById('mFileHint').textContent = 'Upload a file, or paste a link below.';
   document.getElementById('mIconHint').textContent = 'Optional icon/picture for this entry.';
   modal.classList.add('open');
@@ -156,6 +194,9 @@ async function openEdit(id) {
   document.getElementById('mUrl').value = d.type === 'link' ? (d.url || '') : '';
   document.getElementById('mIcon').value = '';
   document.getElementById('mIconUrl').value = d.icon_type === 'url' ? (d.icon || '') : '';
+  selectedExistingIcon = d.icon_type === 'file' ? (d.icon || '') : '';
+  document.getElementById('mIconExisting').value = selectedExistingIcon;
+  renderIconGallery();
   document.getElementById('mTags').value = (d.tags || []).map(t => (typeof t === 'string' ? t : t.name)).join(', ');
   document.getElementById('mFileHint').textContent = d.type === 'link'
     ? 'Currently a link. Upload a file to replace, or update the URL.'
@@ -182,6 +223,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   fd.append('description', description);
   fd.append('url', url);
   fd.append('icon_url', iconUrl);
+  fd.append('icon_existing', selectedExistingIcon);
   fd.append('tags', JSON.stringify(tagNames));
   if (fileInput.files[0]) fd.append('file', fileInput.files[0]);
   if (iconInput.files[0]) fd.append('icon', iconInput.files[0]);
@@ -198,6 +240,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     modal.classList.remove('open');
     loadList();
     loadTags();
+    loadIcons();
   } catch (e) { showToast(e.message, true); }
 });
 

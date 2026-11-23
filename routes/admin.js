@@ -111,6 +111,19 @@ router.delete('/tags/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// List uploaded image files available for use as icons
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|ico)$/i;
+router.get('/icons', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', 'uploads');
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter(f => IMAGE_EXT.test(f));
+  } catch (e) { files = []; }
+  res.json(files.map(f => ({ filename: f, url: '/uploads/' + encodeURIComponent(f) })));
+});
+
 router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'icon', maxCount: 1 }]), (req, res) => {
   const { title, description, url, icon_url } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Title required' });
@@ -130,6 +143,15 @@ router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 
     try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
     icon_type = 'url';
     icon = iu;
+  } else if (req.body.icon_existing && String(req.body.icon_existing).trim()) {
+    const name = String(req.body.icon_existing).trim();
+    const fs = require('fs');
+    const path = require('path');
+    const p = path.join(__dirname, '..', 'uploads', name);
+    if (fs.existsSync(p)) {
+      icon_type = 'file';
+      icon = name;
+    }
   }
 
   const linkUrl = (url || '').trim();
@@ -209,6 +231,18 @@ router.put('/downloads/:id', upload.fields([{ name: 'file', maxCount: 1 }, { nam
       }
       icon_type = 'none';
       icon = '';
+    }
+  } else if (req.body.icon_existing && String(req.body.icon_existing).trim()) {
+    const name = String(req.body.icon_existing).trim();
+    const p = path.join(uploadDir, name);
+    if (fs.existsSync(p)) {
+      // remove old uploaded icon file if different
+      if (row.icon_type === 'file' && row.icon && row.icon !== name) {
+        const oldIcon = path.join(uploadDir, row.icon);
+        if (fs.existsSync(oldIcon)) fs.unlinkSync(oldIcon);
+      }
+      icon_type = 'file';
+      icon = name;
     }
   }
 
