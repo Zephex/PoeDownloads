@@ -6,6 +6,38 @@ const fs = require('fs');
 const db = require('../db');
 const { requireAuth, login, needsSetup, setupAdmin } = require('../auth');
 
+function attachTags(rows) {
+  const map = {};
+  const links = db.prepare('SELECT dt.download_id, t.id, t.name FROM download_tags dt JOIN tags t ON t.id = dt.tag_id').all();
+  for (const l of links) {
+    if (!map[l.download_id]) map[l.download_id] = [];
+    map[l.download_id].push({ id: l.id, name: l.name });
+  }
+  return rows.map(r => ({ ...r, tags: map[r.id] || [] }));
+}
+
+function resolveTagIds(names) {
+  const ids = [];
+  for (const raw of names) {
+    const name = String(raw).trim();
+    if (!name) continue;
+    let row = db.prepare('SELECT id FROM tags WHERE name = ?').get(name);
+    if (!row) {
+      const info = db.prepare('INSERT INTO tags (name) VALUES (?)').run(name);
+      row = { id: info.lastInsertRowid };
+    }
+    ids.push(row.id);
+  }
+  return ids;
+}
+
+function setDownloadTags(downloadId, tagNames) {
+  db.prepare('DELETE FROM download_tags WHERE download_id = ?').run(downloadId);
+  const ids = resolveTagIds(tagNames);
+  const ins = db.prepare('INSERT OR IGNORE INTO download_tags (download_id, tag_id) VALUES (?, ?)');
+  for (const id of ids) ins.run(downloadId, id);
+}
+
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -53,7 +85,30 @@ router.use(requireAuth);
 
 router.get('/downloads', (req, res) => {
   const rows = db.prepare('SELECT * FROM downloads ORDER BY created_at DESC, id DESC').all();
+  res.json(attachTags(rows));
+});
+
+// Tags management
+router.get('/tags', (req, res) => {
+  const rows = db.prepare('SELECT id, name FROM tags ORDER BY name').all();
   res.json(rows);
+});
+
+router.post('/tags', (req, res) => {
+  const name = (req.body && req.body.name) ? String(req.body.name).trim() : '';
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  let row = db.prepare('SELECT id, name FROM tags WHERE name = ?').get(name);
+  if (!row) {
+    const info = db.prepare('INSERT INTO tags (name) VALUES (?)').run(name);
+    row = { id: info.lastInsertRowid, name };
+  }
+  res.status(201).json(row);
+});
+
+router.delete('/tags/:id', (req, res) => {
+  db.prepare('DELETE FROM download_tags WHERE tag_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM tags WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'icon', maxCount: 1 }]), (req, res) => {
@@ -84,7 +139,11 @@ router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 
       VALUES (?, ?, 'file', '', ?, ?, ?, ?, ?, ?)
     `).run(title, description || '', file.filename, file.originalname, file.size, file.mimetype, icon_type, icon);
     const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
-    return res.status(201).json(row);
+    let tagNames = [];
+    if (req.body.tags) { try { tagNames = JSON.parse(req.body.tags); } catch (e) { tagNames = String(req.body.tags).split(',').map(s=>s.trim()).filter(Boolean); } }
+    if (Array.isArray(tagNames)) setDownloadTags(row.id, tagNames);
+    const out = db.prepare('SELECT * FROM downloads WHERE id = ?').get(row.id);
+    return res.status(201).json(attachTags([out])[0]);
   }
 
   if (linkUrl) {
@@ -94,7 +153,11 @@ router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 
       VALUES (?, ?, 'link', ?, '', ?, 0, '', ?, ?)
     `).run(title, description || '', linkUrl, linkUrl, icon_type, icon);
     const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
-    return res.status(201).json(row);
+    let tagNames = [];
+    if (req.body.tags) { try { tagNames = JSON.parse(req.body.tags); } catch (e) { tagNames = String(req.body.tags).split(',').map(s=>s.trim()).filter(Boolean); } }
+    if (Array.isArray(tagNames)) setDownloadTags(row.id, tagNames);
+    const out = db.prepare('SELECT * FROM downloads WHERE id = ?').get(row.id);
+    return res.status(201).json(attachTags([out])[0]);
   }
 
   return res.status(400).json({ error: 'File or link required' });
@@ -174,8 +237,15 @@ router.put('/downloads/:id', upload.fields([{ name: 'file', maxCount: 1 }, { nam
   db.prepare(`
     UPDATE downloads SET title=?, description=?, type=?, url=?, filename=?, original_name=?, size=?, mime=?, icon_type=?, icon=?, updated_at=datetime('now') WHERE id=?
   `).run(title, description, type, url, filename, original_name, size, mime, icon_type, icon, row.id);
+
+  if (req.body.tags != null) {
+    let tagNames = [];
+    try { tagNames = JSON.parse(req.body.tags); } catch (e) { tagNames = String(req.body.tags).split(',').map(s=>s.trim()).filter(Boolean); }
+    if (Array.isArray(tagNames)) setDownloadTags(row.id, tagNames);
+  }
+
   const updated = db.prepare('SELECT * FROM downloads WHERE id = ?').get(row.id);
-  res.json(updated);
+  res.json(attachTags([updated])[0]);
 });
 
 router.delete('/downloads/:id', (req, res) => {

@@ -7,6 +7,7 @@ const modal = document.getElementById('modal');
 const toast = document.getElementById('toast');
 
 let editingId = null;
+let allTags = [];
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -40,7 +41,31 @@ async function checkAuth() {
 
 function showSetup() { setupView.style.display = 'block'; loginView.style.display = 'none'; adminView.style.display = 'none'; }
 function showLogin() { setupView.style.display = 'none'; loginView.style.display = 'block'; adminView.style.display = 'none'; }
-function showAdmin() { setupView.style.display = 'none'; loginView.style.display = 'none'; adminView.style.display = 'block'; loadList(); }
+function showAdmin() { setupView.style.display = 'none'; loginView.style.display = 'none'; adminView.style.display = 'block'; loadList(); loadTags(); }
+
+async function loadTags() {
+  try { allTags = await api('/tags'); } catch (e) { allTags = []; }
+  renderTagSuggestions();
+}
+function renderTagSuggestions() {
+  const box = document.getElementById('tagSuggestions');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const t of allTags) {
+    const chip = document.createElement('span');
+    chip.className = 'btn';
+    chip.style.padding = '4px 10px';
+    chip.style.fontSize = '12px';
+    chip.textContent = t.name;
+    chip.addEventListener('click', () => {
+      const input = document.getElementById('mTags');
+      const parts = input.value.split(',').map(s=>s.trim()).filter(Boolean);
+      if (!parts.includes(t.name)) parts.push(t.name);
+      input.value = parts.join(', ');
+    });
+    box.appendChild(chip);
+  }
+}
 
 document.getElementById('setupBtn').addEventListener('click', async () => {
   const username = document.getElementById('setupUsername').value.trim();
@@ -84,6 +109,9 @@ async function loadList() {
           ${iconHtml}<h3 style="display:inline-block;vertical-align:middle;">${escapeHtml(d.title)}</h3>`
           <p>${escapeHtml(d.description || '')}</p>
           <div class="stats">
+            <span>Tags: ${(d.tags||[]).map(t=>escapeHtml(typeof t==='string'?t:t.name)).join(', ') || 'none'}</span>
+          </div>
+          <div class="stats">
             <span>Type: ${d.type === 'link' ? 'Link' : 'File'}</span>
             <span>${d.type === 'link' ? 'URL: ' + escapeHtml(d.url) : 'File: ' + escapeHtml(d.original_name)}</span>
             <span>Size: ${formatBytes(d.size)}</span>
@@ -112,6 +140,7 @@ function openAdd() {
   document.getElementById('mUrl').value = '';
   document.getElementById('mIcon').value = '';
   document.getElementById('mIconUrl').value = '';
+  document.getElementById('mTags').value = '';
   document.getElementById('mFileHint').textContent = 'Upload a file, or paste a link below.';
   document.getElementById('mIconHint').textContent = 'Optional icon/picture for this entry.';
   modal.classList.add('open');
@@ -127,6 +156,7 @@ async function openEdit(id) {
   document.getElementById('mUrl').value = d.type === 'link' ? (d.url || '') : '';
   document.getElementById('mIcon').value = '';
   document.getElementById('mIconUrl').value = d.icon_type === 'url' ? (d.icon || '') : '';
+  document.getElementById('mTags').value = (d.tags || []).map(t => (typeof t === 'string' ? t : t.name)).join(', ');
   document.getElementById('mFileHint').textContent = d.type === 'link'
     ? 'Currently a link. Upload a file to replace, or update the URL.'
     : 'Leave empty to keep current file: ' + d.original_name;
@@ -145,11 +175,14 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const url = document.getElementById('mUrl').value.trim();
   const iconInput = document.getElementById('mIcon');
   const iconUrl = document.getElementById('mIconUrl').value.trim();
+  const tagsRaw = document.getElementById('mTags').value.trim();
+  const tagNames = tagsRaw ? tagsRaw.split(',').map(s=>s.trim()).filter(Boolean) : [];
   const fd = new FormData();
   fd.append('title', title);
   fd.append('description', description);
   fd.append('url', url);
   fd.append('icon_url', iconUrl);
+  fd.append('tags', JSON.stringify(tagNames));
   if (fileInput.files[0]) fd.append('file', fileInput.files[0]);
   if (iconInput.files[0]) fd.append('icon', iconInput.files[0]);
 
@@ -164,6 +197,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     }
     modal.classList.remove('open');
     loadList();
+    loadTags();
   } catch (e) { showToast(e.message, true); }
 });
 

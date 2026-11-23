@@ -4,9 +4,31 @@ const db = require('../db');
 const path = require('path');
 const fs = require('fs');
 
-router.get('/downloads', (req, res) => {
-  const rows = db.prepare('SELECT id, title, description, type, url, original_name, size, mime, icon_type, icon, downloads, created_at FROM downloads ORDER BY created_at DESC, id DESC').all();
+function attachTags(rows) {
+  const map = {};
+  const links = db.prepare('SELECT dt.download_id, t.name FROM download_tags dt JOIN tags t ON t.id = dt.tag_id').all();
+  for (const l of links) {
+    if (!map[l.download_id]) map[l.download_id] = [];
+    map[l.download_id].push(l.name);
+  }
+  return rows.map(r => ({ ...r, tags: map[r.id] || [] }));
+}
+
+router.get('/tags', (req, res) => {
+  const rows = db.prepare('SELECT id, name FROM tags ORDER BY name').all();
   res.json(rows);
+});
+
+router.get('/downloads', (req, res) => {
+  let sql = 'SELECT id, title, description, type, url, original_name, size, mime, icon_type, icon, downloads, created_at FROM downloads';
+  const params = [];
+  if (req.query.tag) {
+    sql += ' WHERE id IN (SELECT download_id FROM download_tags dt JOIN tags t ON t.id=dt.tag_id WHERE t.name = ?)';
+    params.push(req.query.tag);
+  }
+  sql += ' ORDER BY created_at DESC, id DESC';
+  const rows = db.prepare(sql).all(...params);
+  res.json(attachTags(rows));
 });
 
 router.get('/downloads/:id/file', (req, res) => {

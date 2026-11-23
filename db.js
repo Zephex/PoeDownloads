@@ -43,6 +43,20 @@ if (!adminCols.includes('password_hash')) {
   db.exec("ALTER TABLE admins ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
 }
 
+// Tags tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS download_tags (
+    download_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    PRIMARY KEY (download_id, tag_id)
+  );
+`);
+
 // Migrate downloads table: add type and url columns for link support
 const dlCols = db.prepare("PRAGMA table_info(downloads)").all().map(c => c.name);
 if (!dlCols.includes('type')) {
