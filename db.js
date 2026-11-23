@@ -13,8 +13,10 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
-    filename TEXT NOT NULL,
-    original_name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'file',
+    url TEXT DEFAULT '',
+    filename TEXT NOT NULL DEFAULT '',
+    original_name TEXT NOT NULL DEFAULT '',
     size INTEGER NOT NULL DEFAULT 0,
     mime TEXT DEFAULT 'application/octet-stream',
     downloads INTEGER NOT NULL DEFAULT 0,
@@ -31,13 +33,21 @@ db.exec(`
 `);
 
 // Migrate older databases that lack setup_complete
-const cols = db.prepare("PRAGMA table_info(admins)").all().map(c => c.name);
-if (!cols.includes('setup_complete')) {
+const adminCols = db.prepare("PRAGMA table_info(admins)").all().map(c => c.name);
+if (!adminCols.includes('setup_complete')) {
   db.exec("ALTER TABLE admins ADD COLUMN setup_complete INTEGER NOT NULL DEFAULT 0");
 }
-if (!cols.includes('password_hash')) {
-  // unlikely, but keep safe
+if (!adminCols.includes('password_hash')) {
   db.exec("ALTER TABLE admins ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
+}
+
+// Migrate downloads table: add type and url columns for link support
+const dlCols = db.prepare("PRAGMA table_info(downloads)").all().map(c => c.name);
+if (!dlCols.includes('type')) {
+  db.exec("ALTER TABLE downloads ADD COLUMN type TEXT NOT NULL DEFAULT 'file'");
+}
+if (!dlCols.includes('url')) {
+  db.exec("ALTER TABLE downloads ADD COLUMN url TEXT DEFAULT ''");
 }
 
 module.exports = db;

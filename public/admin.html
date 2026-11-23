@@ -78,9 +78,13 @@
         <textarea id="mDesc"></textarea>
       </div>
       <div class="field">
-        <label>File</label>
+        <label>File (optional if link provided)</label>
         <input id="mFile" type="file" />
         <div id="mFileHint" style="color:var(--ink-muted);font-size:12px;margin-top:4px;"></div>
+      </div>
+      <div class="field">
+        <label>Or paste a link (URL)</label>
+        <input id="mUrl" type="url" placeholder="https://example.com/file.zip" />
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
         <button class="btn" id="cancelBtn">Cancel</button>

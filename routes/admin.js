@@ -57,15 +57,31 @@ router.get('/downloads', (req, res) => {
 });
 
 router.post('/downloads', upload.single('file'), (req, res) => {
-  const { title, description } = req.body || {};
+  const { title, description, url } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Title required' });
-  if (!req.file) return res.status(400).json({ error: 'File required' });
-  const info = db.prepare(`
-    INSERT INTO downloads (title, description, filename, original_name, size, mime)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(title, description || '', req.file.filename, req.file.originalname, req.file.size, req.file.mimetype);
-  const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
-  res.status(201).json(row);
+
+  const linkUrl = (url || '').trim();
+  if (req.file) {
+    const info = db.prepare(`
+      INSERT INTO downloads (title, description, type, url, filename, original_name, size, mime)
+      VALUES (?, ?, 'file', '', ?, ?, ?, ?)
+    `).run(title, description || '', req.file.filename, req.file.originalname, req.file.size, req.file.mimetype);
+    const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
+    return res.status(201).json(row);
+  }
+
+  if (linkUrl) {
+    // basic URL validation
+    try { new URL(linkUrl); } catch (e) { return res.status(400).json({ error: 'Invalid URL' }); }
+    const info = db.prepare(`
+      INSERT INTO downloads (title, description, type, url, filename, original_name, size, mime)
+      VALUES (?, ?, 'link', ?, '', ?, 0, '')
+    `).run(title, description || '', linkUrl, linkUrl);
+    const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
+    return res.status(201).json(row);
+  }
+
+  return res.status(400).json({ error: 'File or link required' });
 });
 
 router.put('/downloads/:id', upload.single('file'), (req, res) => {
@@ -74,6 +90,8 @@ router.put('/downloads/:id', upload.single('file'), (req, res) => {
   const title = req.body.title != null ? req.body.title : row.title;
   const description = req.body.description != null ? req.body.description : row.description;
 
+  let type = row.type;
+  let url = row.url;
   let filename = row.filename;
   let original_name = row.original_name;
   let size = row.size;
@@ -81,16 +99,31 @@ router.put('/downloads/:id', upload.single('file'), (req, res) => {
 
   if (req.file) {
     const oldPath = path.join(uploadDir, row.filename);
-    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    if (row.type === 'file' && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    type = 'file';
+    url = '';
     filename = req.file.filename;
     original_name = req.file.originalname;
     size = req.file.size;
     mime = req.file.mimetype;
+  } else if (req.body.url != null) {
+    const linkUrl = String(req.body.url).trim();
+    if (linkUrl) {
+      try { new URL(linkUrl); } catch (e) { return res.status(400).json({ error: 'Invalid URL' }); }
+      type = 'link';
+      url = linkUrl;
+      filename = '';
+      original_name = linkUrl;
+      size = 0;
+      mime = '';
+    } else if (row.type === 'link') {
+      // keep as link with existing url if empty not provided? if explicitly empty, convert? leave
+    }
   }
 
   db.prepare(`
-    UPDATE downloads SET title=?, description=?, filename=?, original_name=?, size=?, mime=?, updated_at=datetime('now') WHERE id=?
-  `).run(title, description, filename, original_name, size, mime, row.id);
+    UPDATE downloads SET title=?, description=?, type=?, url=?, filename=?, original_name=?, size=?, mime=?, updated_at=datetime('now') WHERE id=?
+  `).run(title, description, type, url, filename, original_name, size, mime, row.id);
   const updated = db.prepare('SELECT * FROM downloads WHERE id = ?').get(row.id);
   res.json(updated);
 });
@@ -98,8 +131,10 @@ router.put('/downloads/:id', upload.single('file'), (req, res) => {
 router.delete('/downloads/:id', (req, res) => {
   const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
-  const filePath = path.join(uploadDir, row.filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  if (row.type === 'file' && row.filename) {
+    const filePath = path.join(uploadDir, row.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
   db.prepare('DELETE FROM downloads WHERE id = ?').run(row.id);
   res.json({ ok: true });
 });

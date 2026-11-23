@@ -82,7 +82,8 @@ async function loadList() {
           <h3>${escapeHtml(d.title)}</h3>
           <p>${escapeHtml(d.description || '')}</p>
           <div class="stats">
-            <span>File: ${escapeHtml(d.original_name)}</span>
+            <span>Type: ${d.type === 'link' ? 'Link' : 'File'}</span>
+            <span>${d.type === 'link' ? 'URL: ' + escapeHtml(d.url) : 'File: ' + escapeHtml(d.original_name)}</span>
             <span>Size: ${formatBytes(d.size)}</span>
             <span>Downloads: ${d.downloads}</span>
           </div>
@@ -106,7 +107,8 @@ function openAdd() {
   document.getElementById('mTitle').value = '';
   document.getElementById('mDesc').value = '';
   document.getElementById('mFile').value = '';
-  document.getElementById('mFileHint').textContent = 'Required when creating.';
+  document.getElementById('mUrl').value = '';
+  document.getElementById('mFileHint').textContent = 'Upload a file, or paste a link below.';
   modal.classList.add('open');
 }
 async function openEdit(id) {
@@ -117,7 +119,10 @@ async function openEdit(id) {
   document.getElementById('mTitle').value = d.title;
   document.getElementById('mDesc').value = d.description || '';
   document.getElementById('mFile').value = '';
-  document.getElementById('mFileHint').textContent = 'Leave empty to keep current file: ' + d.original_name;
+  document.getElementById('mUrl').value = d.type === 'link' ? (d.url || '') : '';
+  document.getElementById('mFileHint').textContent = d.type === 'link'
+    ? 'Currently a link. Upload a file to replace, or update the URL.'
+    : 'Leave empty to keep current file: ' + d.original_name;
   modal.classList.add('open');
 }
 
@@ -127,9 +132,11 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const title = document.getElementById('mTitle').value.trim();
   const description = document.getElementById('mDesc').value.trim();
   const fileInput = document.getElementById('mFile');
+  const url = document.getElementById('mUrl').value.trim();
   const fd = new FormData();
   fd.append('title', title);
   fd.append('description', description);
+  fd.append('url', url);
   if (fileInput.files[0]) fd.append('file', fileInput.files[0]);
 
   try {
@@ -137,7 +144,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       await api('/downloads/' + editingId, { method:'PUT', body: fd });
       showToast('Updated');
     } else {
-      if (!fileInput.files[0]) { showToast('File required', true); return; }
+      if (!fileInput.files[0] && !url) { showToast('File or link required', true); return; }
       await api('/downloads', { method:'POST', body: fd });
       showToast('Created');
     }

@@ -23,8 +23,8 @@ async function load() {
           <h3>${escapeHtml(d.title)}</h3>
           <p>${escapeHtml(d.description || '')}</p>
           <div class="stats">
-            <span>File: ${escapeHtml(d.original_name)}</span>
-            <span>Size: ${formatBytes(d.size)}</span>
+            <span>${d.type === 'link' ? 'Link' : 'File'}: ${escapeHtml(d.type === 'link' ? d.url : d.original_name)}</span>
+            ${d.type === 'file' ? '<span>Size: ' + formatBytes(d.size) + '</span>' : ''}
             <span>Downloads: ${d.downloads}</span>
           </div>
         </div>
