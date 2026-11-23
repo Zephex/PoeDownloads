@@ -19,6 +19,8 @@ db.exec(`
     original_name TEXT NOT NULL DEFAULT '',
     size INTEGER NOT NULL DEFAULT 0,
     mime TEXT DEFAULT 'application/octet-stream',
+    icon_type TEXT NOT NULL DEFAULT 'none',
+    icon TEXT DEFAULT '',
     downloads INTEGER NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
@@ -48,6 +50,12 @@ if (!dlCols.includes('type')) {
 }
 if (!dlCols.includes('url')) {
   db.exec("ALTER TABLE downloads ADD COLUMN url TEXT DEFAULT ''");
+}
+if (!dlCols.includes('icon_type')) {
+  db.exec("ALTER TABLE downloads ADD COLUMN icon_type TEXT NOT NULL DEFAULT 'none'");
+}
+if (!dlCols.includes('icon')) {
+  db.exec("ALTER TABLE downloads ADD COLUMN icon TEXT DEFAULT ''");
 }
 
 module.exports = db;

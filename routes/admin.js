@@ -56,27 +56,43 @@ router.get('/downloads', (req, res) => {
   res.json(rows);
 });
 
-router.post('/downloads', upload.single('file'), (req, res) => {
-  const { title, description, url } = req.body || {};
+router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'icon', maxCount: 1 }]), (req, res) => {
+  const { title, description, url, icon_url } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Title required' });
 
+  const files = req.files || {};
+  const file = files.file ? files.file[0] : null;
+  const iconFile = files.icon ? files.icon[0] : null;
+
+  // Resolve icon
+  let icon_type = 'none';
+  let icon = '';
+  if (iconFile) {
+    icon_type = 'file';
+    icon = iconFile.filename;
+  } else if (icon_url && String(icon_url).trim()) {
+    const iu = String(icon_url).trim();
+    try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
+    icon_type = 'url';
+    icon = iu;
+  }
+
   const linkUrl = (url || '').trim();
-  if (req.file) {
+  if (file) {
     const info = db.prepare(`
-      INSERT INTO downloads (title, description, type, url, filename, original_name, size, mime)
-      VALUES (?, ?, 'file', '', ?, ?, ?, ?)
-    `).run(title, description || '', req.file.filename, req.file.originalname, req.file.size, req.file.mimetype);
+      INSERT INTO downloads (title, description, type, url, filename, original_name, size, mime, icon_type, icon)
+      VALUES (?, ?, 'file', '', ?, ?, ?, ?, ?, ?)
+    `).run(title, description || '', file.filename, file.originalname, file.size, file.mimetype, icon_type, icon);
     const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
     return res.status(201).json(row);
   }
 
   if (linkUrl) {
-    // basic URL validation
     try { new URL(linkUrl); } catch (e) { return res.status(400).json({ error: 'Invalid URL' }); }
     const info = db.prepare(`
-      INSERT INTO downloads (title, description, type, url, filename, original_name, size, mime)
-      VALUES (?, ?, 'link', ?, '', ?, 0, '')
-    `).run(title, description || '', linkUrl, linkUrl);
+      INSERT INTO downloads (title, description, type, url, filename, original_name, size, mime, icon_type, icon)
+      VALUES (?, ?, 'link', ?, '', ?, 0, '', ?, ?)
+    `).run(title, description || '', linkUrl, linkUrl, icon_type, icon);
     const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(info.lastInsertRowid);
     return res.status(201).json(row);
   }
@@ -84,11 +100,15 @@ router.post('/downloads', upload.single('file'), (req, res) => {
   return res.status(400).json({ error: 'File or link required' });
 });
 
-router.put('/downloads/:id', upload.single('file'), (req, res) => {
+router.put('/downloads/:id', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'icon', maxCount: 1 }]), (req, res) => {
   const row = db.prepare('SELECT * FROM downloads WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   const title = req.body.title != null ? req.body.title : row.title;
   const description = req.body.description != null ? req.body.description : row.description;
+
+  const files = req.files || {};
+  const file = files.file ? files.file[0] : null;
+  const iconFile = files.icon ? files.icon[0] : null;
 
   let type = row.type;
   let url = row.url;
@@ -97,15 +117,47 @@ router.put('/downloads/:id', upload.single('file'), (req, res) => {
   let size = row.size;
   let mime = row.mime;
 
-  if (req.file) {
+  let icon_type = row.icon_type;
+  let icon = row.icon;
+
+  // Handle icon update
+  if (iconFile) {
+    if (row.icon_type === 'file' && row.icon) {
+      const oldIcon = path.join(uploadDir, row.icon);
+      if (fs.existsSync(oldIcon)) fs.unlinkSync(oldIcon);
+    }
+    icon_type = 'file';
+    icon = iconFile.filename;
+  } else if (req.body.icon_url != null) {
+    const iu = String(req.body.icon_url).trim();
+    if (iu) {
+      try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
+      if (row.icon_type === 'file' && row.icon) {
+        const oldIcon = path.join(uploadDir, row.icon);
+        if (fs.existsSync(oldIcon)) fs.unlinkSync(oldIcon);
+      }
+      icon_type = 'url';
+      icon = iu;
+    } else if (req.body.icon_url === '') {
+      // clear icon
+      if (row.icon_type === 'file' && row.icon) {
+        const oldIcon = path.join(uploadDir, row.icon);
+        if (fs.existsSync(oldIcon)) fs.unlinkSync(oldIcon);
+      }
+      icon_type = 'none';
+      icon = '';
+    }
+  }
+
+  if (file) {
     const oldPath = path.join(uploadDir, row.filename);
     if (row.type === 'file' && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     type = 'file';
     url = '';
-    filename = req.file.filename;
-    original_name = req.file.originalname;
-    size = req.file.size;
-    mime = req.file.mimetype;
+    filename = file.filename;
+    original_name = file.originalname;
+    size = file.size;
+    mime = file.mimetype;
   } else if (req.body.url != null) {
     const linkUrl = String(req.body.url).trim();
     if (linkUrl) {
@@ -116,14 +168,12 @@ router.put('/downloads/:id', upload.single('file'), (req, res) => {
       original_name = linkUrl;
       size = 0;
       mime = '';
-    } else if (row.type === 'link') {
-      // keep as link with existing url if empty not provided? if explicitly empty, convert? leave
     }
   }
 
   db.prepare(`
-    UPDATE downloads SET title=?, description=?, type=?, url=?, filename=?, original_name=?, size=?, mime=?, updated_at=datetime('now') WHERE id=?
-  `).run(title, description, type, url, filename, original_name, size, mime, row.id);
+    UPDATE downloads SET title=?, description=?, type=?, url=?, filename=?, original_name=?, size=?, mime=?, icon_type=?, icon=?, updated_at=datetime('now') WHERE id=?
+  `).run(title, description, type, url, filename, original_name, size, mime, icon_type, icon, row.id);
   const updated = db.prepare('SELECT * FROM downloads WHERE id = ?').get(row.id);
   res.json(updated);
 });
@@ -134,6 +184,10 @@ router.delete('/downloads/:id', (req, res) => {
   if (row.type === 'file' && row.filename) {
     const filePath = path.join(uploadDir, row.filename);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+  if (row.icon_type === 'file' && row.icon) {
+    const iconPath = path.join(uploadDir, row.icon);
+    if (fs.existsSync(iconPath)) fs.unlinkSync(iconPath);
   }
   db.prepare('DELETE FROM downloads WHERE id = ?').run(row.id);
   res.json({ ok: true });

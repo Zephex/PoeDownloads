@@ -86,6 +86,15 @@
         <label>Or paste a link (URL)</label>
         <input id="mUrl" type="url" placeholder="https://example.com/file.zip" />
       </div>
+      <div class="field">
+        <label>Icon / Image (optional)</label>
+        <input id="mIcon" type="file" accept="image/*" />
+        <div id="mIconHint" style="color:var(--ink-muted);font-size:12px;margin-top:4px;"></div>
+      </div>
+      <div class="field">
+        <label>Or icon URL (favicon/picture)</label>
+        <input id="mIconUrl" type="url" placeholder="https://example.com/favicon.ico" />
+      </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
         <button class="btn" id="cancelBtn">Cancel</button>
         <button class="btn primary" id="saveBtn">Save</button>

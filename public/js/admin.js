@@ -76,10 +76,12 @@ async function loadList() {
   for (const d of data) {
     const card = document.createElement('div');
     card.className = 'card';
+    const iconSrc = d.icon_type === 'file' ? ('/uploads/' + encodeURIComponent(d.icon)) : (d.icon_type === 'url' ? d.icon : '');
+    const iconHtml = iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" style="width:40px;height:40px;object-fit:cover;border:1px solid var(--border);margin-right:10px;vertical-align:middle;" onerror="this.style.display='none'" />` : '';
     card.innerHTML = `
       <div class="download-item">
         <div class="meta">
-          <h3>${escapeHtml(d.title)}</h3>
+          ${iconHtml}<h3 style="display:inline-block;vertical-align:middle;">${escapeHtml(d.title)}</h3>`
           <p>${escapeHtml(d.description || '')}</p>
           <div class="stats">
             <span>Type: ${d.type === 'link' ? 'Link' : 'File'}</span>
@@ -108,7 +110,10 @@ function openAdd() {
   document.getElementById('mDesc').value = '';
   document.getElementById('mFile').value = '';
   document.getElementById('mUrl').value = '';
+  document.getElementById('mIcon').value = '';
+  document.getElementById('mIconUrl').value = '';
   document.getElementById('mFileHint').textContent = 'Upload a file, or paste a link below.';
+  document.getElementById('mIconHint').textContent = 'Optional icon/picture for this entry.';
   modal.classList.add('open');
 }
 async function openEdit(id) {
@@ -120,9 +125,14 @@ async function openEdit(id) {
   document.getElementById('mDesc').value = d.description || '';
   document.getElementById('mFile').value = '';
   document.getElementById('mUrl').value = d.type === 'link' ? (d.url || '') : '';
+  document.getElementById('mIcon').value = '';
+  document.getElementById('mIconUrl').value = d.icon_type === 'url' ? (d.icon || '') : '';
   document.getElementById('mFileHint').textContent = d.type === 'link'
     ? 'Currently a link. Upload a file to replace, or update the URL.'
     : 'Leave empty to keep current file: ' + d.original_name;
+  document.getElementById('mIconHint').textContent = d.icon_type === 'file'
+    ? 'Current icon: ' + d.icon + '. Upload a new one to replace.'
+    : (d.icon_type === 'url' ? 'Current icon URL set.' : 'Optional icon/picture.');
   modal.classList.add('open');
 }
 
@@ -133,11 +143,15 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const description = document.getElementById('mDesc').value.trim();
   const fileInput = document.getElementById('mFile');
   const url = document.getElementById('mUrl').value.trim();
+  const iconInput = document.getElementById('mIcon');
+  const iconUrl = document.getElementById('mIconUrl').value.trim();
   const fd = new FormData();
   fd.append('title', title);
   fd.append('description', description);
   fd.append('url', url);
+  fd.append('icon_url', iconUrl);
   if (fileInput.files[0]) fd.append('file', fileInput.files[0]);
+  if (iconInput.files[0]) fd.append('icon', iconInput.files[0]);
 
   try {
     if (editingId) {

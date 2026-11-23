@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 
 router.get('/downloads', (req, res) => {
-  const rows = db.prepare('SELECT id, title, description, type, url, original_name, size, mime, downloads, created_at FROM downloads ORDER BY created_at DESC, id DESC').all();
+  const rows = db.prepare('SELECT id, title, description, type, url, original_name, size, mime, icon_type, icon, downloads, created_at FROM downloads ORDER BY created_at DESC, id DESC').all();
   res.json(rows);
 });
 

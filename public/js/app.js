@@ -17,10 +17,12 @@ async function load() {
   for (const d of data) {
     const card = document.createElement('div');
     card.className = 'card';
+    const iconSrc = d.icon_type === 'file' ? ('/uploads/' + encodeURIComponent(d.icon)) : (d.icon_type === 'url' ? d.icon : '');
+    const iconHtml = iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border-gold);margin-right:12px;vertical-align:middle;border-radius:2px;" onerror="this.style.display='none'" />` : '';
     card.innerHTML = `
       <div class="download-item">
         <div class="meta">
-          <h3>${escapeHtml(d.title)}</h3>
+          ${iconHtml}<h3 style="display:inline-block;vertical-align:middle;">${escapeHtml(d.title)}</h3>`
           <p>${escapeHtml(d.description || '')}</p>
           <div class="stats">
             <span>${d.type === 'link' ? 'Link' : 'File'}: ${escapeHtml(d.type === 'link' ? d.url : d.original_name)}</span>
