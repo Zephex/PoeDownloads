@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - Exile Downloads</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <div class="brand">
+        <div class="sigil"></div>
+        <div>
+          <h1>Admin Panel</h1>
+          <div class="sub">Manage the exile downloads</div>
+        </div>
+      </div>
+      <a class="btn" href="/">Back to site</a>
+    </header>
+
+    <div id="loginView" class="login-box card" style="display:none;">
+      <h2>Enter the Sanctum</h2>
+      <div class="field">
+        <label>Username</label>
+        <input id="username" type="text" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="password" type="password" autocomplete="current-password" />
+      </div>
+      <button class="btn primary" id="loginBtn">Enter</button>
+      <div id="loginErr" style="color:#f0a0a0;margin-top:10px;font-size:13px;"></div>
+    </div>
+
+    <div id="adminView" style="display:none;">
+      <div class="admin-toolbar">
+        <h2 style="margin:0;">Downloads</h2>
+        <button class="btn primary" id="addBtn">+ Add Download</button>
+      </div>
+      <div id="adminList"></div>
+      <div id="adminEmpty" class="empty" style="display:none;">No downloads yet. Add one to begin.</div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <h2 id="modalTitle">Add Download</h2>
+      <div class="field">
+        <label>Title</label>
+        <input id="mTitle" type="text" />
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="mDesc"></textarea>
+      </div>
+      <div class="field">
+        <label>File</label>
+        <input id="mFile" type="file" />
+        <div id="mFileHint" style="color:var(--ink-muted);font-size:12px;margin-top:4px;"></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn" id="cancelBtn">Cancel</button>
+        <button class="btn primary" id="saveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>
