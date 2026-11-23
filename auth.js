@@ -14,13 +14,21 @@ function envPassword() {
 function ensureAdmin() {
   const username = process.env.ADMIN_USER || 'admin';
   const pw = envPassword();
+
+  // Remove any leftover pending (incomplete) admin rows if a completed admin already exists.
+  const completed = db.prepare("SELECT COUNT(*) AS c FROM admins WHERE setup_complete = 1 AND password_hash != ''").get().c;
+  if (completed > 0) {
+    db.prepare("DELETE FROM admins WHERE setup_complete = 0 OR password_hash = ''").run();
+  }
+
   const row = db.prepare('SELECT id, setup_complete FROM admins WHERE username = ?').get(username);
   if (!row) {
     if (pw) {
       const hash = bcrypt.hashSync(pw, 10);
       db.prepare('INSERT INTO admins (username, password_hash, setup_complete) VALUES (?, ?, 1)').run(username, hash);
       console.log(`Created admin user "${username}" from ADMIN_PASSWORD env.`);
-    } else {
+    } else if (completed === 0) {
+      // Only create a pending admin if none completed exists
       db.prepare('INSERT INTO admins (username, password_hash, setup_complete) VALUES (?, ?, 0)').run(username, '');
       console.log(`Created admin user "${username}" pending first-time setup (no ADMIN_PASSWORD provided).`);
     }
@@ -35,9 +43,10 @@ function ensureAdmin() {
 }
 
 function needsSetup() {
-  const row = db.prepare('SELECT id FROM admins WHERE setup_complete = 0').get();
-  const count = db.prepare('SELECT COUNT(*) AS c FROM admins').get().c;
-  return count === 0 || !!row;
+  // Only require setup if NO admin has completed setup with a password.
+  // A leftover pending row must not re-trigger setup once an account exists.
+  const completed = db.prepare("SELECT COUNT(*) AS c FROM admins WHERE setup_complete = 1 AND password_hash != ''").get().c;
+  return completed === 0;
 }
 
 function setupAdmin(username, password) {
@@ -47,7 +56,6 @@ function setupAdmin(username, password) {
   if (existing) {
     db.prepare('UPDATE admins SET password_hash=?, setup_complete=1 WHERE id=?').run(hash, existing.id);
   } else {
-    // If a different username admin exists with setup_complete=0, update it
     const pending = db.prepare('SELECT id FROM admins WHERE setup_complete = 0 LIMIT 1').get();
     if (pending) {
       db.prepare('UPDATE admins SET username=?, password_hash=?, setup_complete=1 WHERE id=?').run(username, hash, pending.id);
@@ -55,6 +63,8 @@ function setupAdmin(username, password) {
       db.prepare('INSERT INTO admins (username, password_hash, setup_complete) VALUES (?, ?, 1)').run(username, hash);
     }
   }
+  // Clean up any other pending/incomplete admin rows so setup won't re-trigger.
+  db.prepare("DELETE FROM admins WHERE setup_complete = 0 OR password_hash = ''").run();
   const row = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
   return row.id;
 }
