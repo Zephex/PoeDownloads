@@ -1,3 +1,4 @@
+const setupView = document.getElementById('setupView');
 const loginView = document.getElementById('loginView');
 const adminView = document.getElementById('adminView');
 const adminList = document.getElementById('adminList');
@@ -32,11 +33,28 @@ async function api(path, opts) {
 
 async function checkAuth() {
   const me = await api('/me');
-  if (me.loggedIn) showAdmin(); else showLogin();
+  if (me.needsSetup) showSetup();
+  else if (me.loggedIn) showAdmin();
+  else showLogin();
 }
 
-function showLogin() { loginView.style.display = 'block'; adminView.style.display = 'none'; }
-function showAdmin() { loginView.style.display = 'none'; adminView.style.display = 'block'; loadList(); }
+function showSetup() { setupView.style.display = 'block'; loginView.style.display = 'none'; adminView.style.display = 'none'; }
+function showLogin() { setupView.style.display = 'none'; loginView.style.display = 'block'; adminView.style.display = 'none'; }
+function showAdmin() { setupView.style.display = 'none'; loginView.style.display = 'none'; adminView.style.display = 'block'; loadList(); }
+
+document.getElementById('setupBtn').addEventListener('click', async () => {
+  const username = document.getElementById('setupUsername').value.trim();
+  const password = document.getElementById('setupPassword').value;
+  const confirm = document.getElementById('setupConfirm').value;
+  const err = document.getElementById('setupErr');
+  err.textContent = '';
+  if (password.length < 4) { err.textContent = 'Password must be at least 4 characters.'; return; }
+  if (password !== confirm) { err.textContent = 'Passwords do not match.'; return; }
+  try {
+    await api('/setup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
+    showAdmin();
+  } catch (e) { err.textContent = e.message; }
+});
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const username = document.getElementById('username').value.trim();

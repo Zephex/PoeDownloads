@@ -22,6 +22,25 @@
       <a class="btn" href="/">Back to site</a>
     </header>
 
+    <div id="setupView" class="login-box card" style="display:none;">
+      <h2>First-Time Setup</h2>
+      <p style="color:var(--ink-dim);font-size:13px;margin:0 0 14px;">No admin password has been configured yet. Create one now.</p>
+      <div class="field">
+        <label>Username</label>
+        <input id="setupUsername" type="text" autocomplete="username" value="admin" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="setupPassword" type="password" autocomplete="new-password" />
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input id="setupConfirm" type="password" autocomplete="new-password" />
+      </div>
+      <button class="btn primary" id="setupBtn">Create Admin</button>
+      <div id="setupErr" style="color:#f0a0a0;margin-top:10px;font-size:13px;"></div>
+    </div>
+
     <div id="loginView" class="login-box card" style="display:none;">
       <h2>Enter the Sanctum</h2>
       <div class="field">

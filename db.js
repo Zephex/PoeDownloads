@@ -25,8 +25,19 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS admins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL
+    password_hash TEXT NOT NULL DEFAULT '',
+    setup_complete INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// Migrate older databases that lack setup_complete
+const cols = db.prepare("PRAGMA table_info(admins)").all().map(c => c.name);
+if (!cols.includes('setup_complete')) {
+  db.exec("ALTER TABLE admins ADD COLUMN setup_complete INTEGER NOT NULL DEFAULT 0");
+}
+if (!cols.includes('password_hash')) {
+  // unlikely, but keep safe
+  db.exec("ALTER TABLE admins ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
+}
 
 module.exports = db;

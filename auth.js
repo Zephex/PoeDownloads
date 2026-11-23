@@ -1,15 +1,62 @@
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 
+function envPassword() {
+  const p = process.env.ADMIN_PASSWORD;
+  if (!p) return null;
+  const trimmed = String(p).trim();
+  if (!trimmed) return null;
+  // Treat obvious placeholders as "not set" so first-login setup can run
+  if (/^CHANGE_ME/i.test(trimmed)) return null;
+  return trimmed;
+}
+
 function ensureAdmin() {
   const username = process.env.ADMIN_USER || 'admin';
-  const password = process.env.ADMIN_PASSWORD || 'admin';
-  const row = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
+  const pw = envPassword();
+  const row = db.prepare('SELECT id, setup_complete FROM admins WHERE username = ?').get(username);
   if (!row) {
-    const hash = bcrypt.hashSync(password, 10);
-    db.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)').run(username, hash);
-    console.log(`Created default admin user "${username}" (password from ADMIN_PASSWORD or "admin")`);
+    if (pw) {
+      const hash = bcrypt.hashSync(pw, 10);
+      db.prepare('INSERT INTO admins (username, password_hash, setup_complete) VALUES (?, ?, 1)').run(username, hash);
+      console.log(`Created admin user "${username}" from ADMIN_PASSWORD env.`);
+    } else {
+      db.prepare('INSERT INTO admins (username, password_hash, setup_complete) VALUES (?, ?, 0)').run(username, '');
+      console.log(`Created admin user "${username}" pending first-time setup (no ADMIN_PASSWORD provided).`);
+    }
+    return;
   }
+  // Existing row: if env password provided and not yet complete, apply it
+  if (pw && !row.setup_complete) {
+    const hash = bcrypt.hashSync(pw, 10);
+    db.prepare('UPDATE admins SET password_hash=?, setup_complete=1 WHERE id=?').run(hash, row.id);
+    console.log(`Applied ADMIN_PASSWORD to existing admin "${username}".`);
+  }
+}
+
+function needsSetup() {
+  const row = db.prepare('SELECT id FROM admins WHERE setup_complete = 0').get();
+  const count = db.prepare('SELECT COUNT(*) AS c FROM admins').get().c;
+  return count === 0 || !!row;
+}
+
+function setupAdmin(username, password) {
+  username = (username || process.env.ADMIN_USER || 'admin').trim() || 'admin';
+  const hash = bcrypt.hashSync(password, 10);
+  const existing = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
+  if (existing) {
+    db.prepare('UPDATE admins SET password_hash=?, setup_complete=1 WHERE id=?').run(hash, existing.id);
+  } else {
+    // If a different username admin exists with setup_complete=0, update it
+    const pending = db.prepare('SELECT id FROM admins WHERE setup_complete = 0 LIMIT 1').get();
+    if (pending) {
+      db.prepare('UPDATE admins SET username=?, password_hash=?, setup_complete=1 WHERE id=?').run(username, hash, pending.id);
+    } else {
+      db.prepare('INSERT INTO admins (username, password_hash, setup_complete) VALUES (?, ?, 1)').run(username, hash);
+    }
+  }
+  const row = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
+  return row.id;
 }
 
 function requireAuth(req, res, next) {
@@ -18,10 +65,12 @@ function requireAuth(req, res, next) {
 }
 
 function login(username, password) {
-  const row = db.prepare('SELECT id, password_hash FROM admins WHERE username = ?').get(username);
+  const row = db.prepare('SELECT id, password_hash, setup_complete FROM admins WHERE username = ?').get(username);
   if (!row) return null;
+  if (!row.setup_complete) return null; // must set up first
+  if (!row.password_hash) return null;
   if (!bcrypt.compareSync(password, row.password_hash)) return null;
   return row.id;
 }
 
-module.exports = { ensureAdmin, requireAuth, login };
+module.exports = { ensureAdmin, requireAuth, login, needsSetup, setupAdmin };

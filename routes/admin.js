@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const db = require('../db');
-const { requireAuth, login } = require('../auth');
+const { requireAuth, login, needsSetup, setupAdmin } = require('../auth');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -18,7 +18,25 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
+router.get('/me', (req, res) => {
+  const setup = needsSetup();
+  if (req.session && req.session.adminId) return res.json({ loggedIn: true, username: req.session.username, needsSetup: setup });
+  res.json({ loggedIn: false, needsSetup: setup });
+});
+
+router.post('/setup', (req, res) => {
+  if (!needsSetup()) return res.status(403).json({ error: 'Setup already completed' });
+  const { username, password } = req.body || {};
+  if (!password || String(password).length < 4) return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  const id = setupAdmin(username, password);
+  const user = (username && String(username).trim()) || process.env.ADMIN_USER || 'admin';
+  req.session.adminId = id;
+  req.session.username = user;
+  res.json({ ok: true, username: user });
+});
+
 router.post('/login', (req, res) => {
+  if (needsSetup()) return res.status(403).json({ error: 'Setup required', needsSetup: true });
   const { username, password } = req.body || {};
   const id = login(username, password);
   if (!id) return res.status(401).json({ error: 'Invalid credentials' });
@@ -29,11 +47,6 @@ router.post('/login', (req, res) => {
 
 router.post('/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
-});
-
-router.get('/me', (req, res) => {
-  if (req.session && req.session.adminId) return res.json({ loggedIn: true, username: req.session.username });
-  res.json({ loggedIn: false });
 });
 
 router.use(requireAuth);
