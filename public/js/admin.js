@@ -106,7 +106,7 @@ async function loadList() {
     card.innerHTML = `
       <div class="download-item">
         <div class="meta">
-          ${iconHtml}<h3 style="display:inline-block;vertical-align:middle;">${escapeHtml(d.title)}</h3>`
+          ${iconHtml}<h3 style="display:inline-block;vertical-align:middle;">${escapeHtml(d.title)}</h3>
           <p>${escapeHtml(d.description || '')}</p>
           <div class="stats">
             <span>Tags: ${(d.tags||[]).map(t=>escapeHtml(typeof t==='string'?t:t.name)).join(', ') || 'none'}</span>
