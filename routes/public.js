@@ -20,7 +20,7 @@ router.get('/tags', (req, res) => {
 });
 
 router.get('/downloads', (req, res) => {
-  let sql = 'SELECT id, title, description, type, url, original_name, size, mime, icon_type, icon, downloads, created_at FROM downloads';
+  let sql = 'SELECT id, title, description, type, url, original_name, size, mime, downloads, created_at FROM downloads';
   const params = [];
   if (req.query.tag) {
     sql += ' WHERE id IN (SELECT download_id FROM download_tags dt JOIN tags t ON t.id=dt.tag_id WHERE t.name = ?)';

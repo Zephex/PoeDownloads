@@ -19,6 +19,13 @@ function escapeHtml(s) {
 
 function tagName(t) { return typeof t === 'string' ? t : t.name; }
 
+function faviconUrl(url) {
+  try {
+    const u = new URL(url);
+    return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(u.hostname) + '&sz=64';
+  } catch (e) { return ''; }
+}
+
 function renderTagFilter() {
   tagFilterEl.innerHTML = '';
   const allChip = document.createElement('button');
@@ -51,9 +58,14 @@ function render() {
   if (!data.length) { emptyEl.style.display = 'block'; return; }
   emptyEl.style.display = 'none';
   for (const d of data) {
-    const iconSrc = d.icon_type === 'file' ? ('/uploads/' + encodeURIComponent(d.icon)) : (d.icon_type === 'url' ? d.icon : '');
-    const iconHtml = iconSrc ? `<a href="/api/downloads/${d.id}/file" style="display:inline-block;"><img src="${escapeHtml(iconSrc)}" alt="" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border-gold);margin-right:12px;vertical-align:middle;border-radius:2px;" onerror="this.style.display='none'" /></a>` : '';
     const tags = (d.tags || []).map(tagName).map(n => `<span style="display:inline-block;padding:2px 8px;margin:2px;border:1px solid var(--border-gold);font-size:11px;color:var(--gold-bright);">${escapeHtml(n)}</span>`).join(' ');
+    let iconHtml = '';
+    if (d.type === 'link') {
+      const fu = faviconUrl(d.url);
+      if (fu) iconHtml = `<img src="${escapeHtml(fu)}" alt="" style="width:32px;height:32px;object-fit:contain;margin-right:12px;vertical-align:middle;" onerror="this.style.display='none'" />`;
+    } else {
+      iconHtml = `<span style="font-size:28px;margin-right:12px;vertical-align:middle;">📄</span>`;
+    }
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
