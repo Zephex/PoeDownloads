@@ -296,7 +296,7 @@ async function doDelete(id) {
   } catch (e) { showToast(e.message, true); }
 }
 
-// Icon upload button wiring
+// Icon upload button wiring (toolbar)
 const uploadIconBtn = document.getElementById('uploadIconBtn');
 const iconUploadInput = document.getElementById('iconUploadInput');
 if (uploadIconBtn && iconUploadInput) {
@@ -321,5 +321,29 @@ if (uploadIconBtn && iconUploadInput) {
 // live preview for icon URL field
 const mIconUrlInput = document.getElementById('mIconUrl');
 if (mIconUrlInput) mIconUrlInput.addEventListener('input', updateIconPreview);
+
+// Modal upload icon button
+const mUploadIconBtn = document.getElementById('mUploadIconBtn');
+const mIconUploadInput = document.getElementById('mIconUploadInput');
+const mIconUploadStatus = document.getElementById('mIconUploadStatus');
+if (mUploadIconBtn && mIconUploadInput) {
+  mUploadIconBtn.addEventListener('click', () => mIconUploadInput.click());
+  mIconUploadInput.addEventListener('change', async () => {
+    const f = mIconUploadInput.files[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append('icon', f);
+    try {
+      const res = await api('/icons', { method: 'POST', body: fd });
+      selectedExistingIcon = res.filename;
+      document.getElementById('mIconExisting').value = selectedExistingIcon;
+      await loadIcons();
+      if (mIconUploadStatus) mIconUploadStatus.textContent = 'Uploaded: ' + res.filename;
+      updateIconPreview();
+      showToast('Icon uploaded');
+    } catch (e) { showToast(e.message, true); if (mIconUploadStatus) mIconUploadStatus.textContent = e.message; }
+    mIconUploadInput.value = '';
+  });
+}
 
 checkAuth();

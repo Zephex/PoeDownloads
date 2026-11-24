@@ -52,7 +52,7 @@ function render() {
   emptyEl.style.display = 'none';
   for (const d of data) {
     const iconSrc = d.icon_type === 'file' ? ('/uploads/' + encodeURIComponent(d.icon)) : (d.icon_type === 'url' ? d.icon : '');
-    const iconHtml = iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border-gold);margin-right:12px;vertical-align:middle;border-radius:2px;" onerror="this.style.display='none'" />` : '';
+    const iconHtml = iconSrc ? `<a href="/api/downloads/${d.id}/file" style="display:inline-block;"><img src="${escapeHtml(iconSrc)}" alt="" style="width:48px;height:48px;object-fit:cover;border:1px solid var(--border-gold);margin-right:12px;vertical-align:middle;border-radius:2px;" onerror="this.style.display='none'" /></a>` : '';
     const tags = (d.tags || []).map(tagName).map(n => `<span style="display:inline-block;padding:2px 8px;margin:2px;border:1px solid var(--border-gold);font-size:11px;color:var(--gold-bright);">${escapeHtml(n)}</span>`).join(' ');
     const card = document.createElement('div');
     card.className = 'card';
