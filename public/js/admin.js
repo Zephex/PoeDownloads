@@ -55,6 +55,9 @@ function renderIconGallery() {
   box.innerHTML = '';
   if (!allIcons.length) { box.textContent = 'No uploaded images yet.'; box.style.color = 'var(--ink-muted)'; return; }
   for (const ic of allIcons) {
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    wrap.style.display = 'inline-block';
     const img = document.createElement('img');
     img.src = ic.url;
     img.title = ic.filename;
@@ -74,7 +77,32 @@ function renderIconGallery() {
       document.getElementById('mIconExisting').value = selectedExistingIcon;
       renderIconGallery();
     });
-    box.appendChild(img);
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.title = 'Delete icon';
+    del.style.position = 'absolute';
+    del.style.top = '-6px';
+    del.style.right = '-6px';
+    del.style.width = '18px';
+    del.style.height = '18px';
+    del.style.padding = '0';
+    del.style.fontSize = '12px';
+    del.style.lineHeight = '1';
+    del.style.borderRadius = '50%';
+    del.style.cursor = 'pointer';
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Delete this icon?')) return;
+      try {
+        await api('/icons/' + encodeURIComponent(ic.filename), { method: 'DELETE' });
+        if (selectedExistingIcon === ic.filename) { selectedExistingIcon = ''; document.getElementById('mIconExisting').value = ''; }
+        await loadIcons();
+        showToast('Icon deleted');
+      } catch (err) { showToast(err.message, true); }
+    });
+    wrap.appendChild(img);
+    wrap.appendChild(del);
+    box.appendChild(wrap);
   }
 }
 
@@ -251,6 +279,25 @@ async function doDelete(id) {
     showToast('Deleted');
     loadList();
   } catch (e) { showToast(e.message, true); }
+}
+
+// Icon upload button wiring
+const uploadIconBtn = document.getElementById('uploadIconBtn');
+const iconUploadInput = document.getElementById('iconUploadInput');
+if (uploadIconBtn && iconUploadInput) {
+  uploadIconBtn.addEventListener('click', () => iconUploadInput.click());
+  iconUploadInput.addEventListener('change', async () => {
+    const f = iconUploadInput.files[0];
+    if (!f) return;
+    const fd = new FormData();
+    fd.append('icon', f);
+    try {
+      await api('/icons', { method: 'POST', body: fd });
+      showToast('Icon uploaded');
+      await loadIcons();
+    } catch (e) { showToast(e.message, true); }
+    iconUploadInput.value = '';
+  });
 }
 
 checkAuth();

@@ -113,6 +113,17 @@ router.delete('/tags/:id', (req, res) => {
 
 // List uploaded image files available for use as icons
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|ico)$/i;
+const iconUpload = require('multer')({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, '..', 'uploads')),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname))
+  }),
+  fileFilter: (req, file, cb) => {
+    if (IMAGE_EXT.test(file.originalname)) cb(null, true); else cb(new Error('Only image files allowed'));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 router.get('/icons', (req, res) => {
   const fs = require('fs');
   const path = require('path');
@@ -122,6 +133,24 @@ router.get('/icons', (req, res) => {
     files = fs.readdirSync(dir).filter(f => IMAGE_EXT.test(f));
   } catch (e) { files = []; }
   res.json(files.map(f => ({ filename: f, url: '/uploads/' + encodeURIComponent(f) })));
+});
+
+router.post('/icons', iconUpload.single('icon'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Image required' });
+  res.status(201).json({ filename: req.file.filename, url: '/uploads/' + encodeURIComponent(req.file.filename) });
+});
+
+router.delete('/icons/:filename', (req, res) => {
+  const name = req.params.filename;
+  // prevent path traversal
+  if (name.includes('/') || name.includes('\\\\')) return res.status(400).json({ error: 'Invalid filename' });
+  const inUse = db.prepare("SELECT COUNT(*) AS c FROM downloads WHERE icon_type='file' AND icon = ?").get(name).c;
+  if (inUse > 0) return res.status(409).json({ error: 'Icon is in use by a download' });
+  const fs = require('fs');
+  const path = require('path');
+  const p = path.join(__dirname, '..', 'uploads', name);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+  res.json({ ok: true });
 });
 
 router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'icon', maxCount: 1 }]), (req, res) => {

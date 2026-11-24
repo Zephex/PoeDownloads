@@ -58,7 +58,11 @@
     <div id="adminView" style="display:none;">
       <div class="admin-toolbar">
         <h2 style="margin:0;">Downloads</h2>
-        <button class="btn primary" id="addBtn">+ Add Download</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn" id="uploadIconBtn">📷 Upload Icon</button>
+          <input type="file" id="iconUploadInput" accept="image/*" style="display:none;" />
+          <button class="btn primary" id="addBtn">+ Add Download</button>
+        </div>
       </div>
       <div id="adminList"></div>
       <div id="adminEmpty" class="empty" style="display:none;">No downloads yet. Add one to begin.</div>
