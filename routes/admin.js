@@ -169,9 +169,14 @@ router.post('/downloads', upload.fields([{ name: 'file', maxCount: 1 }, { name: 
     icon = iconFile.filename;
   } else if (icon_url && String(icon_url).trim()) {
     const iu = String(icon_url).trim();
-    try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
-    icon_type = 'url';
-    icon = iu;
+    if (iu.startsWith('/')) {
+      icon_type = 'url';
+      icon = iu;
+    } else {
+      try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
+      icon_type = 'url';
+      icon = iu;
+    }
   } else if (req.body.icon_existing && String(req.body.icon_existing).trim()) {
     const name = String(req.body.icon_existing).trim();
     const fs = require('fs');
@@ -245,7 +250,9 @@ router.put('/downloads/:id', upload.fields([{ name: 'file', maxCount: 1 }, { nam
   } else if (req.body.icon_url != null) {
     const iu = String(req.body.icon_url).trim();
     if (iu) {
-      try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
+      if (!iu.startsWith('/')) {
+        try { new URL(iu); } catch (e) { return res.status(400).json({ error: 'Invalid icon URL' }); }
+      }
       if (row.icon_type === 'file' && row.icon) {
         const oldIcon = path.join(uploadDir, row.icon);
         if (fs.existsSync(oldIcon)) fs.unlinkSync(oldIcon);

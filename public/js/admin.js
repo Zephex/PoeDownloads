@@ -49,6 +49,20 @@ async function loadIcons() {
   try { allIcons = await api('/icons'); } catch (e) { allIcons = []; }
   renderIconGallery();
 }
+function updateIconPreview() {
+  const preview = document.getElementById('iconPreview');
+  if (!preview) return;
+  let src = '';
+  if (selectedExistingIcon) {
+    src = '/uploads/' + encodeURIComponent(selectedExistingIcon);
+  } else {
+    const iu = document.getElementById('mIconUrl').value.trim();
+    if (iu) src = iu;
+  }
+  if (src) { preview.src = src; preview.style.display = 'inline-block'; }
+  else { preview.style.display = 'none'; }
+}
+
 function renderIconGallery() {
   const box = document.getElementById('iconGallery');
   if (!box) return;
@@ -104,6 +118,7 @@ function renderIconGallery() {
     wrap.appendChild(del);
     box.appendChild(wrap);
   }
+  updateIconPreview();
 }
 
 async function loadTags() {
@@ -292,12 +307,19 @@ if (uploadIconBtn && iconUploadInput) {
     const fd = new FormData();
     fd.append('icon', f);
     try {
-      await api('/icons', { method: 'POST', body: fd });
-      showToast('Icon uploaded');
+      const res = await api('/icons', { method: 'POST', body: fd });
+      showToast('Icon uploaded: ' + res.filename);
+      selectedExistingIcon = res.filename;
+      document.getElementById('mIconExisting').value = selectedExistingIcon;
       await loadIcons();
+      updateIconPreview();
     } catch (e) { showToast(e.message, true); }
     iconUploadInput.value = '';
   });
 }
+
+// live preview for icon URL field
+const mIconUrlInput = document.getElementById('mIconUrl');
+if (mIconUrlInput) mIconUrlInput.addEventListener('input', updateIconPreview);
 
 checkAuth();
